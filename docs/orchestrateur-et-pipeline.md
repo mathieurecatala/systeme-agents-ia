@@ -11,7 +11,7 @@ l'humain le moins possible.
 L'orchestrateur est une session Claude Code lancée dans le cloud par la console d'opérations. Il ne garde rien en mémoire
 entre deux lancements : tout son état est dans la base et dans les dépôts.
 
-#### Ce qui le déclenche
+### Ce qui le déclenche
 
 | Événement | Origine |
 |---|---|
@@ -21,35 +21,35 @@ entre deux lancements : tout son état est dans la base et dans les dépôts.
 | Quotidien | tâche planifiée, une fois par jour |
 | Relance | des notes sont arrivées pendant qu'il tournait, ou il vient de faire créer un projet |
 
-#### Ce qui le borne
+### Ce qui le borne
 
-- **Un seul orchestrateur à la fois.** Le verrou est un index unique partiel en base : deux déclenchements simultanés
-  (la tâche planifiée peut être appelée deux fois) donnent un seul lancement.
-- **Verrou expiré.** Une session restée sans compte rendu plus de quatre heures passe en échec et libère le verrou.
-- **Budget.** Quatre passages du pipeline par jour au plus, deux par lancement. Douze lancements par jour au plus.
-- **Interrupteur.** Une variable de configuration coupe tous les lancements. Les notes et réponses restent en base et
-  seront traitées à la remise en marche. En pause depuis le 19 octobre 2026.
-- **Ordre fixe.** Réponses d'abord, puis client signé, notes de projet, notes générales (cinq au plus), passages du
-  pipeline, questions, et le compte rendu en dernier, même en cas d'échec.
-- **Une question par projet et par lancement au plus, la plus urgente.** L'ordre de priorité est écrit : désaccord
-  sur une demande explicite, arrêt contesté, panne, autres besoins.
+- Un seul orchestrateur tourne à la fois. Le verrou est un index unique partiel en base : deux déclenchements
+  simultanés (la tâche planifiée peut être appelée deux fois) donnent un seul lancement.
+- Une session restée sans compte rendu plus de quatre heures passe en échec et libère le verrou.
+- Le budget est de quatre passages du pipeline par jour au plus, deux par lancement, et de douze lancements par jour.
+- Une variable de configuration coupe tous les lancements. Les notes et réponses restent en base et seront traitées
+  à la remise en marche. Le système est en pause depuis le 19 octobre 2026.
+- L'ordre est fixe. Les réponses d'abord, puis client signé, notes de projet, notes générales (cinq au plus),
+  passages du pipeline, questions, et le compte rendu en dernier, même en cas d'échec.
+- Il pose au plus une question par projet et par lancement, la plus urgente. L'ordre de priorité est écrit :
+  désaccord sur une demande explicite, arrêt contesté, panne, autres besoins.
 
-#### Ce qu'il peut demander
+### Ce qu'il peut demander
 
 Il n'écrit rien dans la console. Il rend des actions que le serveur valide et applique : neuf types
 d'action (créer un projet, poser une question, annoncer un arrêt…). Créer un projet fait créer un dépôt privé. Annoncer un arrêt
 programme la suppression du dépôt à J+7, annulable d'un bouton. Ni l'orchestrateur ni aucune autre session
 ne supprime quoi que ce soit.
 
-#### Tri des notes, avec critique
+### Tri des notes, avec critique
 
 Chaque note générale passe par deux agents : un agent de tri (nouveau projet,
 rattachement à un projet existant, ou note à écarter parce que c'est un pense-bête) et un agent critique. En cas de
-désaccord, le tri est relancé une fois avec l'avis du critique. Toujours en désaccord : l'alternative du critique est
-retenue, ou la note est écartée avec un message qui dit pourquoi. Une note n'est jamais laissée sans issue, sinon elle
+désaccord, le tri est relancé une fois avec l'avis du critique. Si le désaccord persiste, l'alternative du critique
+est retenue ou la note est écartée avec un message qui dit pourquoi. Une note n'est jamais laissée sans issue, sinon elle
 relancerait l'orchestrateur en boucle.
 
-### Un tour quotidien
+### Un lancement quotidien
 
 ```mermaid
 sequenceDiagram
@@ -60,7 +60,7 @@ sequenceDiagram
     participant G as Dépôts GitHub
     participant M as Opérateur, sur Telegram
 
-    T->>S: tour du matin
+    T->>S: lancement du matin
     S->>S: interrupteur, verrou, plafond du jour
     S->>O: déclenche avec l'état : notes, réponses, projets, budget
     O->>G: clone ses consignes et les dépôts des projets
@@ -117,7 +117,7 @@ C'est l'étape qui a le plus d'agents. L'agent principal ne donne pas d'avis : i
 imposés (prix, taux de réponse, taux de conversion, coûts, heures par client…), chacun avec un statut (sourcé,
 calculé, estimé, hypothèse, décision) et sa source. Un module Python calcule en `Decimal` la marge, le nombre de
 clients nécessaires, les heures, la trésorerie et la sensibilité aux chiffres clés, puis rend un verdict parmi
-`viable`, `fragile`, `douteux` et `non_viable`.
+viable, fragile, douteux et non viable.
 
 Quatre critiques attaquent ensuite le résultat sous des angles différents : l'acheteur (ce que la cible paie
 aujourd'hui), la finance (chaque chiffre, son unité, sa source), la vente (l'accès réel à la cible, le cycle) et un
@@ -129,11 +129,17 @@ s'arrêtent sur une décision, au lieu d'une troisième reprise qui ne changerai
 
 ### La machine à états
 
-Les agents écrivent leurs sorties ; un seul module Python écrit l'état du projet. Il confirme ou remplace le verdict
+Les agents écrivent leurs sorties, mais un seul module Python écrit l'état du projet. Il confirme ou remplace le verdict
 proposé, applique les plafonds et calcule la transition.
 
 ```mermaid
 stateDiagram-v2
+    state "en attente de décision" as en_attente_decision
+    state "en attente de l'humain" as en_attente_humain
+    state "en mesure" as en_mesure
+    state "client signé" as client_signe
+    state "arrêté" as arrete
+    state "terminé" as termine
     [*] --> actif
     actif --> actif: continuer, retravailler, retour vers une étape amont
     actif --> en_attente_decision: décision confiée à l'IA
@@ -153,11 +159,12 @@ stateDiagram-v2
 
 Les plafonds codés :
 
-- trois exécutions d'une même étape, puis une seule relance automatique, puis une question sur la panne ;
-- six retours vers une étape amont ; au septième, arrêt automatique par le bilan, parce que l'idée ne converge pas ;
-- trois questions non bloquantes au plus par étape ; le reste va dans le rapport ;
-- après un test de vente réfuté, l'IA ne peut revenir qu'une fois à l'offre ou au modèle économique, ensuite
-  seulement arrêter.
+- Une même étape s'exécute trois fois au plus, puis a droit à une seule relance automatique. Ensuite, une question
+  sur la panne part vers l'humain.
+- Six retours vers une étape amont au plus. Au septième, le bilan arrête le projet, parce que l'idée ne converge pas.
+- Trois questions non bloquantes au plus par étape. Le reste va dans le rapport.
+- Après un test de vente réfuté, l'IA ne peut revenir qu'une fois à l'offre ou au modèle économique. Ensuite, elle
+  ne peut plus qu'arrêter.
 
 ### Les décisions confiées à l'IA
 
@@ -172,22 +179,19 @@ terrain), et la prolongation d'un test qui n'a pas eu le temps d'aboutir.
 
 ### Mémoire et calibrage
 
-- **Leçons.** L'étape Bilan écrit des leçons datées, relues par tous les projets suivants. Exemple : poser dès
-  l'élaboration les questions sur l'accès réel à la cible, au lieu de les découvrir trois étapes plus loin.
-- **Calibrage.** Chaque hypothèse testée est enregistrée avec la probabilité annoncée et le résultat réel. La
-  statistique n'autorise une correction des probabilités qu'au-delà de 50 lignes, pour ne pas corriger sur du bruit.
+L'étape Bilan écrit des leçons datées, relues par tous les projets suivants. Par exemple, poser dès l'élaboration les
+questions sur l'accès réel à la cible, au lieu de les découvrir trois étapes plus loin.
+
+Chaque hypothèse testée est enregistrée avec la probabilité annoncée et le résultat réel. La statistique n'autorise
+une correction des probabilités qu'au-delà de 50 lignes, pour ne pas corriger sur du bruit.
 
 ### Le banc d'essai
 
 Pour juger une modification du pipeline sans attendre des mois, on le rejoue sur des cas dont on connaît la fin :
 d'anciens projets et des cas de référence positifs, 13 en tout. Les agents du banc travaillent dans des bacs à sable isolés, sans
 accès aux fichiers. Un agent juge compare leurs sorties à ce qu'on pouvait savoir à l'époque et à ce qui s'est
-réellement passé. Seuil de passage : 0,75.
+réellement passé. Le seuil de passage est de 0,75.
 
-Il existe en deux tailles. Le banc réduit rejoue les 5 cas marqués comme rapides ; c'est le seul qui a été
+Il existe en deux tailles. Le banc réduit rejoue les 5 cas marqués comme rapides, et c'est le seul qui a été
 lancé. Le banc complet rejoue les 13, dont 2 cas gardés en réserve qui ne servent qu'à lui. Il coûte plusieurs
-heures de sessions et il est réservé à un changement de version ; il n'a jamais tourné.
-
-Scores réels du banc réduit : 0,543, puis 0,804, puis 0,848 (passe), puis 0,826 sur les critères d'origine après
-l'ajout de l'étape modèle économique. Cette régression venait d'un cas où le système avait confondu le porteur du
-cas avec l'opérateur, et ses heures disponibles avec les siennes ; la correction a été faite cas par cas.
+heures de sessions, il est réservé à un changement de version et il n'a jamais tourné.

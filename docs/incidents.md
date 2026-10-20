@@ -1,4 +1,4 @@
-# Incidents de production
+# Incidents d'exploitation
 
 [Retour à l'accueil](../README.md)
 
@@ -20,11 +20,11 @@ les a passés en échec, et le projet en cours n'a pas avancé.
 
 **Cause.** Les journaux des trois sessions montraient le même enchaînement. L'orchestrateur lançait les agents du
 pipeline en arrière-plan. Une fois le rapport du critique reçu, il écrivait qu'il attendait le décompte des appels
-d'outils de cet agent pour clore l'étape, et terminait son tour. La notification de fin de tâche n'arrivait jamais ;
+d'outils de cet agent pour clore l'étape, et terminait son tour. La notification de fin de tâche n'arrivait jamais, et
 la session restait inactive.
 
 **Correctif.** Deux changements, dans les consignes de l'orchestrateur et dans la procédure du pipeline :
-les agents se lancent au premier plan et leur résultat s'attend dans le même tour ; une session ne termine jamais son
+les agents se lancent au premier plan et leur résultat s'attend dans le même tour, et une session ne termine jamais son
 tour pour attendre une notification. Le décompte des appels d'outils est devenu facultatif dans le code : il ne sert
 qu'à l'historique et ne justifie jamais d'attendre.
 
@@ -43,7 +43,7 @@ lancement d'agents.
 procédure (skill) copiée dans le dossier de l'utilisateur est reconnue tout de suite. Un deuxième test a révélé que
 les sessions ne démarraient pas dans le dépôt que la documentation indiquait.
 
-**Correctif.** Les 38 agents sont versionnés dans le dépôt où démarrent réellement les sessions. Le script de
+**Correctif.** Les 38 agents (23 en service et 15 copies pour les tests) sont versionnés dans le dépôt où démarrent réellement les sessions. Le script de
 préparation ne copie plus que les procédures. Un test vérifie que les copies sont à jour par rapport aux sources. Si
 un agent manque malgré tout, les consignes donnent un repli : lire son fichier et lancer un agent général avec le
 même modèle.
@@ -67,7 +67,7 @@ elle devient une question d'information.
 
 **Vérification.** Le lendemain, la même décision est passée par le décideur. Le critique a contesté son premier choix :
 il contredisait un mot de la note d'origine et s'appuyait sur des chiffres sans source. La décision a donc été
-renvoyée en question à l'humain. C'est le comportement voulu.
+renvoyée en question à l'humain.
 
 ## 4. Des questions illisibles sur un téléphone
 
@@ -79,26 +79,12 @@ des identifiants de besoins. Il a fallu la réexpliquer avant d'y répondre.
 **Cause.** Les consignes disaient quoi demander. Elles ne disaient rien de la façon de l'écrire pour quelqu'un qui lit
 sur un téléphone.
 
-**Correctif.** Un format imposé : la question en une phrase, dans les mots de l'utilisateur ; un éclairage d'une ou deux phrases,
-250 caractères au plus ;
-les options en lignes `a)`, `b)`, `c)` ; une recommandation en une ligne ; 700 caractères au plus par question ; ni
-titre, ni identifiant, ni explication du fonctionnement interne. Les consignes donnent un exemple complet.
+**Correctif.** La question tient désormais en une phrase, dans les mots de l'utilisateur, suivie d'un
+éclairage de 250 caractères au plus. Les options sont en lignes `a)`, `b)`, `c)`, avec une recommandation en une
+ligne. Une question fait 700 caractères au plus, sans titre, sans identifiant et sans explication du fonctionnement
+interne. Les consignes donnent un exemple complet.
 
 **Vérification.** La question suivante tenait en deux phrases.
-
-## 5. Les consignes internes visibles dans un dépôt public
-
-*9 octobre 2026, publication d'un projet.*
-
-**Symptôme.** Un dépôt où des sessions cloud avaient travaillé venait d'être passé en public. Son historique git
-contenait le brief donné aux sessions et leurs notes de passage, qui ne s'adressaient pas à un lecteur extérieur.
-
-**Cause.** Un dépôt de travail garde tout dans son historique. Supprimer les fichiers dans un dernier commit n'y change
-rien.
-
-**Correctif.** Le dépôt est repassé en privé le jour même. Règle depuis : un dépôt de travail n'est jamais publié. La
-version publique est un nouveau dépôt, sans l'historique de travail, construit à partir d'une copie nettoyée, avec un
-auteur sans adresse personnelle, passée au scanner de secrets et relue avant publication.
 
 ## Ce qu'il faut en retenir
 
